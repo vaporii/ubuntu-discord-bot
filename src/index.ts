@@ -82,7 +82,9 @@ async function createContainer(channelId: string) {
     console.log("Created container");
     return container;
   } catch {
-    throw new Error("Image does not exist, maybe you didn't build the Dockerfile?")
+    throw new Error(
+      "Image does not exist, maybe you didn't build the Dockerfile?"
+    );
   }
 }
 
@@ -107,10 +109,8 @@ function startShell(channelId: string, forceStart: boolean = false) {
     const result = await getContainerByName(channelId);
 
     if (result) {
-      console.log("HERE");
       console.log("Container already exists");
       container = docker.getContainer(result.Id);
-      console.log("HERE");
       if (result.State !== "running" || forceStart) {
         forceStart && console.log("Force starting container...");
         console.log("Container not running, attempting to start...");
@@ -128,7 +128,6 @@ function startShell(channelId: string, forceStart: boolean = false) {
           });
         }
       }
-      console.log("HERE 129");
     } else {
       console.log("Creating container...");
       container = await createContainer(channelId);
@@ -155,9 +154,6 @@ function startShell(channelId: string, forceStart: boolean = false) {
 
         stream?.on("data", (data) => {
           terminal.write(data);
-          // output += data;
-          // process.stdout.write(data);
-          // console.log(stream?.read());
         });
 
         stream?.on("end", () => {
@@ -166,8 +162,10 @@ function startShell(channelId: string, forceStart: boolean = false) {
 
           sendMessage(
             channelId,
-            `**Shell stream Ended.**\nUse ${options.prefix}attach to attempt to reattach.`
+            `**Ubuntu BASH shell stream Ended.**\nTo attempt restarting the shell, use ${options.prefix}attach.`
           );
+
+          firstMessage?.delete();
 
           console.log("Shell", channelId, "ended");
         });
@@ -185,7 +183,7 @@ function startShell(channelId: string, forceStart: boolean = false) {
 
           output =
             "## Ubuntu BASH Shell\n**Reactions:**\n" +
-            "^C, ^X, Escape, Arrow keys, Backspace, Return/Enter, RESTART\n*sudo password is 'password'*" +
+            "^C, ^X, Escape, Arrow keys, Backspace, Return/Enter, STOP\n*sudo password is 'password'*" +
             "```bash\n" +
             (convert(html).trim().replaceAll("`", "\\`") + " ```").slice(-1850);
 
@@ -202,76 +200,73 @@ function startShell(channelId: string, forceStart: boolean = false) {
           // initialize the message and add reactions and listeners and whatever
           sendMessage(channelId, output).then(async (message) => {
             // ◀️ 🔼 🔽 ▶️ ⬅️
-            firstMessage = message;
+            try {
+              firstMessage = message;
 
-            await message.react("🇨"); // ^C
-            await message.react("🇽");
-            await message.react("<:escape:1222383765628915784>"); // Escape
-            await message.react("◀️");
-            await message.react("🔼");
-            await message.react("🔽");
-            await message.react("▶️");
-            await message.react("⬅️");
-            await message.react("↩️");
-            await message.react("🔃");
+              await message.react("🇨"); // ^C
+              await message.react("🇽");
+              await message.react("<:escape:1222383765628915784>"); // Escape
+              await message.react("◀️");
+              await message.react("🔼");
+              await message.react("🔽");
+              await message.react("▶️");
+              await message.react("⬅️");
+              await message.react("↩️");
+              await message.react("🛑");
 
-            message
-              .createReactionCollector()
-              .on("collect", async (reaction, user) => {
-                if (user.bot) return;
-                if (streamEnded) return;
-                reaction.users.remove(user.id);
+              message
+                .createReactionCollector()
+                .on("collect", async (reaction, user) => {
+                  if (user.bot) return;
+                  if (streamEnded) return;
+                  reaction.users.remove(user.id);
 
-                switch (reaction.emoji.name) {
-                  case "🇨":
-                    stream?.write("\x03");
-                    break;
-                  case "🇽":
-                    stream?.write("\x18");
-                    break;
-                  case "escape":
-                    stream?.write("\x1b");
-                    break;
-                  case "◀️":
-                    stream?.write("\x1b[D");
-                    break;
-                  case "🔼":
-                    stream?.write("\x1b[A");
-                    break;
-                  case "🔽":
-                    stream?.write("\x1b[B");
-                    break;
-                  case "▶️":
-                    stream?.write("\x1b[C");
-                    break;
-                  case "⬅️":
-                    stream?.write("\x08");
-                    break;
-                  case "↩️":
-                    stream?.write("\n");
-                    break;
-                  case "🔃":
-                    sendMessage(channelId, "Restarting shell...");
-                    console.log("Restarting shell", channelId + "...");
-                    console.log("Stopping shell", channelId + "...");
-                    await container.stop();
-                    console.log("Stopped shell, starting...");
-                    rej({
-                      reattach: true,
-                      channelId: channelId,
-                      forceStart: true,
-                    });
-                    break;
-                  default:
-                    break;
-                }
-              });
+                  switch (reaction.emoji.name) {
+                    case "🇨":
+                      stream?.write("\x03");
+                      break;
+                    case "🇽":
+                      stream?.write("\x18");
+                      break;
+                    case "escape":
+                      stream?.write("\x1b");
+                      break;
+                    case "◀️":
+                      stream?.write("\x1b[D");
+                      break;
+                    case "🔼":
+                      stream?.write("\x1b[A");
+                      break;
+                    case "🔽":
+                      stream?.write("\x1b[B");
+                      break;
+                    case "▶️":
+                      stream?.write("\x1b[C");
+                      break;
+                    case "⬅️":
+                      stream?.write("\x08");
+                      break;
+                    case "↩️":
+                      stream?.write("\n");
+                      break;
+                    case "🛑":
+                      sendMessage(channelId, "Stopping shell...");
+                      console.log("Stopping shell", channelId + "...");
+                      await container.stop();
+                      console.log("Stopped shell");
+                      break;
+                    default:
+                      break;
+                  }
+                });
+            } catch {
+              console.log("Message removed, stopping reactions...");
+            }
           });
         }
         setInterval(sendContent, 2000);
 
         function onMessage(message: Message) {
-          if (streamEnded) return;
           if (message.author.bot) return;
           if (message.channelId !== channelId) return;
 
@@ -321,6 +316,4 @@ client.once("ready", () => {
   main(options.channelIds || []);
 });
 
-client.login(
-  process.env.TOKEN
-);
+client.login(process.env.TOKEN);
