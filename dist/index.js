@@ -13,7 +13,7 @@ dotenv_1.default.config();
 const options = {
     rows: 20,
     cols: 40,
-    channelIds: process.env.CHANNELS?.split(" "),
+    channelIds: process.env.CHANNELS?.split(" ") || [],
     prefix: "u!",
 };
 const docker = new dockerode_1.default({ socketPath: "/var/run/docker.sock" });
@@ -232,14 +232,14 @@ function startShell(channelId, forceStart = false) {
             }
             setInterval(sendContent, 2000);
             function onMessage(message) {
-                if (message.author.bot)
-                    return;
                 if (message.channelId !== channelId)
+                    return;
+                if (message.author.bot)
                     return;
                 // console.log(message.content);
                 const messageContent = message.content;
+                const command = checkCommand(options.prefix, messageContent);
                 if (streamEnded) {
-                    const command = checkCommand(options.prefix, messageContent);
                     if (command === "attach") {
                         // client.removeListener("messageCreate", onMessage);
                         rej({ reattach: true, channelId: channelId, forceStart: false });
@@ -269,8 +269,19 @@ async function main(channelIds, forceStart = false) {
         });
     });
 }
+client.on("messageCreate", (message) => {
+    if (message.author.bot)
+        return;
+    if (options.channelIds.includes(message.channelId))
+        return;
+    const command = checkCommand(options.prefix, message.content);
+    if (command === "start" && message.author.id === "1130296369928753183") {
+        options.channelIds.push(message.channelId);
+        main([message.channelId]);
+    }
+});
 client.once("ready", () => {
     console.log("Ready!");
-    main(options.channelIds || []);
+    main(options.channelIds);
 });
 client.login(process.env.TOKEN);

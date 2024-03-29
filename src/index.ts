@@ -10,8 +10,9 @@ dotenv.config();
 const options = {
   rows: 20,
   cols: 40,
-  channelIds: process.env.CHANNELS?.split(" "),
+  channelIds: process.env.CHANNELS?.split(" ") || [],
   prefix: "u!",
+  authorId: process.env.AUTHOR,
 };
 
 const docker = new Docker({ socketPath: "/var/run/docker.sock" });
@@ -267,14 +268,13 @@ function startShell(channelId: string, forceStart: boolean = false) {
         setInterval(sendContent, 2000);
 
         function onMessage(message: Message) {
-          if (message.author.bot) return;
           if (message.channelId !== channelId) return;
-
+          if (message.author.bot) return;
           // console.log(message.content);
           const messageContent = message.content;
 
+          const command = checkCommand(options.prefix, messageContent);
           if (streamEnded) {
-            const command = checkCommand(options.prefix, messageContent);
             if (command === "attach") {
               // client.removeListener("messageCreate", onMessage);
               rej({ reattach: true, channelId: channelId, forceStart: false });
@@ -311,9 +311,20 @@ async function main(channelIds: string[], forceStart: boolean = false) {
   });
 }
 
+client.on("messageCreate", (message) => {
+  if (message.author.bot) return;
+  if (options.channelIds.includes(message.channelId)) return;
+
+  const command = checkCommand(options.prefix, message.content);
+  if (command === "start" && message.author.id === options.authorId) {
+    options.channelIds.push(message.channelId);
+    main([message.channelId]);
+  }
+});
+
 client.once("ready", () => {
   console.log("Ready!");
-  main(options.channelIds || []);
+  main(options.channelIds);
 });
 
 client.login(process.env.TOKEN);
