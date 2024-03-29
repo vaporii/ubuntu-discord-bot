@@ -89,6 +89,26 @@ async function createContainer(channelId: string) {
   }
 }
 
+function placeCursor(
+  terminalString: string,
+  cursor: { x: number; y: number }
+): string {
+  const cursorIndex = cursor.y * (options.cols + 1) + cursor.x;
+  if (terminalString[cursorIndex] === " ") {
+    return [
+      terminalString.slice(0, cursorIndex),
+      "_",
+      terminalString.slice(cursorIndex + 1),
+    ].join("");
+  } else {
+    return [
+      terminalString.slice(0, cursorIndex + 1),
+      "\u0332",
+      terminalString.slice(cursorIndex + 1),
+    ].join("");
+  }
+}
+
 function startShell(channelId: string, forceStart: boolean = false) {
   return new Promise(async (res, rej) => {
     const channel = await client.channels.fetch(channelId);
@@ -102,6 +122,7 @@ function startShell(channelId: string, forceStart: boolean = false) {
     console.log("Starting shell", channelId + "...");
 
     const terminal = new Terminal({ cols: options.cols, rows: options.rows });
+
     const serialize = new SerializeAddon();
     terminal.loadAddon(serialize);
 
@@ -177,6 +198,7 @@ function startShell(channelId: string, forceStart: boolean = false) {
 
         async function sendContent() {
           if (streamEnded) return;
+
           const html = serialize.serializeAsHTML({
             includeGlobalBackground: true,
             scrollback: 0,
@@ -185,13 +207,26 @@ function startShell(channelId: string, forceStart: boolean = false) {
           output =
             "## Ubuntu BASH Shell\n**Reactions:**\n" +
             "^C, ^X, Escape, Arrow keys, Backspace, Return/Enter, STOP\n*sudo password is 'password'*" +
-            "```bash\n" +
-            (convert(html).trim().replaceAll("`", "\\`") + " ```").slice(-1850);
+            "```ansi\n" +
+            // (serialize.serialize().slice(-1850) + " ```");
+            (
+              placeCursor(convert(html), {
+                x: terminal.buffer.active.cursorX,
+                y: terminal.buffer.active.cursorY,
+              })
+                .trim()
+                .replaceAll("`", "\\`") + " ```"
+            ).slice(-1850);
 
           // If this isn't the first message, then edit it. If it is the first message, send blah blah and do reactions blah
           if (firstMessage) {
             if (output !== lastOutput) {
               firstMessage.edit(output);
+
+              console.log({
+                x: terminal.buffer.active.cursorX,
+                y: terminal.buffer.active.cursorY,
+              });
             }
 
             lastOutput = output;
